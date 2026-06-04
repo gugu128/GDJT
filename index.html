@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>计算机联锁模拟仿真系统主控界面</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="screen">
+      <header class="topbar">
+        <div class="nav-cluster">
+          <button class="icon-btn" type="button" aria-label="菜单">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+          <span class="divider"></span>
+          <button class="icon-btn" type="button" aria-label="首页">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m3 11 9-8 9 8" />
+              <path d="M5 10v10h14V10" />
+              <path d="M10 20v-6h4v6" />
+            </svg>
+          </button>
+          <button class="tab-btn active" type="button">主控界面</button>
+        </div>
+        <h1>计算机联锁模拟仿真系统主控界面</h1>
+        <div class="clock-box">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 7v6l4 2" />
+          </svg>
+          <time id="systemClock">2026-05-23&nbsp;&nbsp;10:21:36</time>
+        </div>
+      </header>
+
+      <main class="dashboard">
+        <section class="panel station-panel" aria-label="站场图显示区">
+          <div class="panel-title floating-title">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M5 16h14l1 3H4l1-3Z" />
+              <path d="M6 5h12a2 2 0 0 1 2 2v9H4V7a2 2 0 0 1 2-2Z" />
+              <path d="M8 9h8" />
+              <circle cx="8" cy="13" r="1.2" />
+              <circle cx="16" cy="13" r="1.2" />
+            </svg>
+            <span>站场图显示区</span>
+          </div>
+
+          <div class="station-canvas">
+            <svg class="station-svg" id="stationSvg" viewBox="0 0 1600 292" role="img" aria-label="站场线路图">
+              <defs>
+                <filter id="softGlow" x="-40%" y="-40%" width="180%" height="180%">
+                  <feGaussianBlur stdDeviation="3" result="blur" />
+                  <feMerge>
+                    <feMergeNode in="blur" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
+                <marker id="arrowLeft" markerWidth="10" markerHeight="10" refX="1" refY="5" orient="auto">
+                  <path d="M10 0 0 5l10 5Z" class="arrow-fill" />
+                </marker>
+                <marker id="arrowRight" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
+                  <path d="M0 0 10 5 0 10Z" class="arrow-fill" />
+                </marker>
+              </defs>
+
+              <g class="direction-labels">
+                <line x1="76" y1="145" x2="204" y2="145" marker-start="url(#arrowLeft)" class="direction-line" />
+                <text x="24" y="198">← 上行</text>
+                <text x="28" y="231">（进站方向）</text>
+                <line x1="1420" y1="145" x2="1560" y2="145" marker-end="url(#arrowRight)" class="direction-line" />
+                <text x="1518" y="199" text-anchor="middle">下行</text>
+                <text x="1518" y="232" text-anchor="middle">（出站方向）→</text>
+              </g>
+
+              <g class="track-base-layer" stroke-linecap="square" stroke-linejoin="round" aria-hidden="true">
+                <path class="track-base" d="M204 145H360" />
+                <path class="track-base" d="M360 145H1250" />
+                <path class="track-base" d="M1250 145H1462" />
+                <path class="track-base" d="M360 145 506 58H690" />
+                <path class="track-base" d="M690 58H936" />
+                <path class="track-base" d="M936 58H1126" />
+                <path class="track-base" d="M1126 58 1202 126 1228 126 1250 145" />
+                <path class="track-base" d="M360 145 456 178 506 232H936" />
+                <path class="track-base" d="M936 232H1126" />
+                <path class="track-base" d="M1126 232 1194 174 1220 174 1250 145" />
+              </g>
+
+              <g class="track-state-layer" stroke-linecap="square" stroke-linejoin="round">
+                <path id="track-1G" data-track-id="1G" class="track track-state free" d="M204 145H360" />
+                <path id="track-2G" data-track-id="2G" class="track track-state route" d="M506 58H690" />
+                <path id="track-3G" data-track-id="3G" class="track track-state occupied" d="M690 58H936" />
+                <path id="track-4G" data-track-id="4G" class="track track-state free" d="M936 58H1126" />
+                <path id="track-5G" data-track-id="5G" class="track track-state free" d="M506 145H930" />
+                <path id="track-8G" data-track-id="8G" class="track track-state free" d="M930 145H1250" />
+                <path id="track-7G" data-track-id="7G" class="track track-state free" d="M1250 145H1462" />
+                <path id="track-6G" data-track-id="6G" class="track track-state occupied" d="M506 232H936" />
+                <path id="track-9G" data-track-id="9G" class="track track-state free" d="M936 232H1126" />
+                <path id="route-throat-left-up" class="turnout-route active" d="M360 145 506 58" />
+                <path id="route-throat-left-down" class="turnout-route inactive" d="M360 145 456 178 506 232" />
+                <path id="route-throat-right-up" class="turnout-route inactive" d="M1126 58 1202 126 1228 126 1250 145" />
+                <path id="route-throat-right-down" class="turnout-route active" d="M1126 232 1194 174 1220 174 1250 145" />
+              </g>
+
+              <g class="turnout-blade-layer" aria-hidden="true">
+                <path class="turnout-blade" d="M346 145H372" />
+                <path class="turnout-blade" d="M360 145 406 119" />
+                <path class="turnout-blade" d="M360 145 408 170" />
+                <path class="turnout-blade" d="M1228 145H1260" />
+                <path class="turnout-blade" d="M1248 145 1210 127" />
+                <path class="turnout-blade" d="M1248 145 1210 168" />
+              </g>
+
+              <g class="joint-layer">
+                <rect x="194" y="136" width="17" height="17" class="joint" />
+                <rect x="352" y="136" width="17" height="17" class="joint turnout-joint" />
+                <rect x="501" y="136" width="17" height="17" class="joint" />
+                <rect x="501" y="49" width="17" height="17" class="joint" />
+                <rect x="686" y="43" width="17" height="17" class="joint" />
+                <rect x="927" y="43" width="17" height="17" class="joint" />
+                <rect x="1082" y="49" width="17" height="17" class="joint" />
+                <rect x="1118" y="49" width="17" height="17" class="joint" />
+                <rect x="927" y="136" width="17" height="17" class="joint" />
+                <rect x="501" y="224" width="17" height="17" class="joint" />
+                <rect x="927" y="224" width="17" height="17" class="joint" />
+                <rect x="1082" y="224" width="17" height="17" class="joint" />
+                <rect x="1241" y="136" width="17" height="17" class="joint turnout-joint" />
+                <rect x="1384" y="136" width="17" height="17" class="joint" />
+              </g>
+
+              <g class="switch-layer">
+                <g id="switch-1" class="switch-symbol positioned">
+                  <text x="366" y="108" class="switch-label">1#道岔</text>
+                  <path d="M386 132 405 119 424 119" />
+                  <circle cx="386" cy="132" r="4.2" />
+                  <circle cx="405" cy="119" r="4.2" />
+                  <circle cx="424" cy="119" r="4.2" />
+                </g>
+                <g id="switch-3" class="switch-symbol reverse">
+                  <text x="366" y="210" class="switch-label">3#道岔</text>
+                  <path d="M386 164 408 184 426 184" />
+                  <circle cx="386" cy="164" r="4.2" />
+                  <circle cx="408" cy="184" r="4.2" />
+                  <circle cx="426" cy="184" r="4.2" />
+                </g>
+                <g id="switch-5" class="switch-symbol positioned">
+                  <text x="1180" y="125" class="switch-label">5#道岔</text>
+                  <path d="M1208 130 1225 140 1240 146" />
+                  <circle cx="1208" cy="130" r="4.2" />
+                  <circle cx="1225" cy="140" r="4.2" />
+                  <circle cx="1240" cy="146" r="4.2" />
+                </g>
+              </g>
+
+              <g class="track-text">
+                <text x="254" y="128">1G</text>
+                <text x="592" y="74">2G</text>
+                <text x="792" y="74">3G</text>
+                <text x="1018" y="74">4G</text>
+                <text x="592" y="128">5G</text>
+                <text x="592" y="220">6G</text>
+                <text x="1324" y="128">7G</text>
+                <text x="1018" y="128">8G</text>
+                <text x="1018" y="220">9G</text>
+                <text x="758" y="34">I道（到发线）</text>
+                <text x="756" y="126">II道（调车线）</text>
+                <text x="750" y="218">III道（牵出线）</text>
+              </g>
+
+              <g id="signal-X1" class="signal signal-open" data-signal-id="X1" transform="translate(126 92)">
+                <text x="18" y="-16" text-anchor="middle">X1</text>
+                <rect x="0" y="0" width="36" height="78" rx="8" />
+                <circle class="lamp green-lamp" cx="18" cy="18" r="9" />
+                <circle class="lamp off-lamp" cx="18" cy="40" r="9" />
+                <circle class="lamp off-lamp" cx="18" cy="62" r="9" />
+                <path d="M18 78v15" />
+                <path d="M8 93h20" />
+              </g>
+
+              <g id="signal-S1" class="signal signal-closed" data-signal-id="S1" transform="translate(1466 92)">
+                <text x="18" y="-16" text-anchor="middle">S1</text>
+                <rect x="0" y="0" width="36" height="78" rx="8" />
+                <circle class="lamp red-lamp" cx="18" cy="18" r="9" />
+                <circle class="lamp off-lamp" cx="18" cy="40" r="9" />
+                <circle class="lamp off-lamp" cx="18" cy="62" r="9" />
+                <path d="M18 78v15" />
+                <path d="M8 93h20" />
+              </g>
+
+              <g id="signal-D1" class="signal shunt signal-closed" data-signal-id="D1" transform="translate(770 224)">
+                <text x="-18" y="24" text-anchor="middle">D1</text>
+                <rect x="0" y="0" width="78" height="36" rx="8" />
+                <circle class="lamp red-lamp" cx="18" cy="18" r="9" />
+                <circle class="lamp off-lamp" cx="40" cy="18" r="9" />
+                <circle class="lamp off-lamp" cx="62" cy="18" r="9" />
+                <path d="M78 18h15" />
+                <path d="M93 14v8" />
+              </g>
+            </svg>
+          </div>
+        </section>
+
+        <section class="panel train-panel">
+          <div class="panel-title">
+            <span class="section-index">1</span>
+            <span>列车作业区</span>
+          </div>
+          <div class="button-grid train-grid">
+            <button class="action-card" type="button" data-action="receiveRoute">
+              <span class="button-icon train-icon"></span>
+              <span>办理接车进路</span>
+            </button>
+            <button class="action-card" type="button" data-action="departRoute">
+              <span class="button-icon route-icon"></span>
+              <span>办理发车进路</span>
+            </button>
+            <button class="action-card" type="button" data-action="throughRoute">
+              <span class="button-icon through-icon"></span>
+              <span>办理通过进路</span>
+            </button>
+            <button class="action-card" type="button" data-action="cancelRoute">
+              <span class="button-icon cancel-icon"></span>
+              <span>取消进路</span>
+            </button>
+            <button class="action-card" type="button" data-action="manualUnlock">
+              <span class="button-icon unlock-yellow"></span>
+              <span>人工解锁</span>
+            </button>
+            <button class="action-card" type="button" data-action="routeUnlock">
+              <span class="button-icon unlock-blue"></span>
+              <span>进路解锁</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="panel dispatch-panel">
+          <div class="panel-title">
+            <span class="section-index">2</span>
+            <span>调车作业区</span>
+          </div>
+          <div class="button-stack">
+            <button class="action-card" type="button" data-action="shuntRoute">
+              <span class="button-icon switch-route-icon"></span>
+              <span>办理调车进路</span>
+            </button>
+            <button class="action-card" type="button" data-action="shuntCancel">
+              <span class="button-icon cancel-icon"></span>
+              <span>调车取消</span>
+            </button>
+            <button class="action-card" type="button" data-action="openShuntSignal">
+              <span class="button-icon signal-open-icon"></span>
+              <span>调车信号开放</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="panel switch-panel">
+          <div class="panel-title">
+            <span class="section-index">3</span>
+            <span>道岔操作区</span>
+          </div>
+          <table class="switch-table" aria-label="道岔操作表">
+            <thead>
+              <tr>
+                <th>道岔</th>
+                <th>定位</th>
+                <th>反位</th>
+                <th>单锁</th>
+                <th>封锁</th>
+                <th>解锁</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th>1#道岔</th>
+                <td><button type="button" class="mini-btn green" data-switch="1" data-position="positioned">定位</button></td>
+                <td><button type="button" class="mini-btn amber" data-switch="1" data-position="reverse">反位</button></td>
+                <td><button type="button" class="mini-btn blue" data-switch-lock="1" data-lock="single">单锁</button></td>
+                <td><button type="button" class="mini-btn orange" data-switch-lock="1" data-lock="blocked">封锁</button></td>
+                <td><button type="button" class="mini-btn blue" data-switch-lock="1" data-lock="free">解锁</button></td>
+              </tr>
+              <tr>
+                <th>3#道岔</th>
+                <td><button type="button" class="mini-btn green" data-switch="3" data-position="positioned">定位</button></td>
+                <td><button type="button" class="mini-btn amber" data-switch="3" data-position="reverse">反位</button></td>
+                <td><button type="button" class="mini-btn blue" data-switch-lock="3" data-lock="single">单锁</button></td>
+                <td><button type="button" class="mini-btn orange" data-switch-lock="3" data-lock="blocked">封锁</button></td>
+                <td><button type="button" class="mini-btn blue" data-switch-lock="3" data-lock="free">解锁</button></td>
+              </tr>
+              <tr>
+                <th>5#道岔</th>
+                <td><button type="button" class="mini-btn green" data-switch="5" data-position="positioned">定位</button></td>
+                <td><button type="button" class="mini-btn amber" data-switch="5" data-position="reverse">反位</button></td>
+                <td><button type="button" class="mini-btn blue" data-switch-lock="5" data-lock="single">单锁</button></td>
+                <td><button type="button" class="mini-btn orange" data-switch-lock="5" data-lock="blocked">封锁</button></td>
+                <td><button type="button" class="mini-btn blue" data-switch-lock="5" data-lock="free">解锁</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="panel simulation-panel">
+          <div class="panel-title">
+            <span class="section-index">4</span>
+            <span>仿真控制区</span>
+          </div>
+          <div class="sim-grid">
+            <button class="action-card" type="button" data-action="enterSection">
+              <span class="button-icon train-icon"></span>
+              <span>列车进入区段</span>
+            </button>
+            <button class="action-card" type="button" data-action="toggleOccupy">
+              <span class="button-icon track-occupy-icon"></span>
+              <span>列车占用/出清</span>
+            </button>
+            <button class="action-card" type="button" data-action="signalFault">
+              <span class="button-icon fault-icon"></span>
+              <span>信号机断丝模拟</span>
+            </button>
+            <button class="action-card" type="button" data-action="resetDevices">
+              <span class="button-icon reset-icon"></span>
+              <span>设备复位</span>
+            </button>
+            <button class="action-card wide" type="button" data-action="autoDemo">
+              <span class="button-icon play-icon"></span>
+              <span>自动演示（可选）</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="panel device-panel">
+          <div class="panel-title">
+            <span class="section-index">5</span>
+            <span>设备状态区</span>
+          </div>
+          <table class="status-table" aria-label="设备状态表">
+            <thead>
+              <tr>
+                <th>设备</th>
+                <th>状态</th>
+                <th>说明</th>
+              </tr>
+            </thead>
+            <tbody id="deviceStatusBody"></tbody>
+          </table>
+        </section>
+
+        <section class="panel log-panel">
+          <div class="panel-title">
+            <span class="section-index">6</span>
+            <span>操作提示与日志区</span>
+          </div>
+          <div class="log-window" id="logWindow" aria-live="polite"></div>
+        </section>
+
+        <section class="panel info-panel">
+          <div class="panel-title">
+            <span class="section-index">7</span>
+            <span>辅助信息区</span>
+          </div>
+          <dl class="info-list">
+            <div>
+              <dt>
+                <span class="info-icon mode"></span>
+                当前模式：
+              </dt>
+              <dd id="modeText">仿真运行</dd>
+            </div>
+            <div>
+              <dt>
+                <span class="info-icon countdown"></span>
+                人工解锁倒计时：
+              </dt>
+              <dd><span id="countdownText">28</span> s</dd>
+            </div>
+            <div>
+              <dt>
+                <span class="info-icon system"></span>
+                系统状态：
+              </dt>
+              <dd id="systemStateText">正常</dd>
+            </div>
+            <div>
+              <dt>
+                <span class="info-icon user"></span>
+                值班员：
+              </dt>
+              <dd id="operatorText">学生演示账号</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="panel legend-panel">
+          <div class="panel-title">
+            <span class="section-index">8</span>
+            <span>状态图例 / 颜色说明</span>
+          </div>
+          <div class="legend-grid">
+            <div class="legend-column">
+              <div class="legend-item"><span class="line-swatch green-line"></span><span>绿色 = 信号开放 / 进路建立</span></div>
+              <div class="legend-item"><span class="line-swatch red-line"></span><span>红色 = 信号关闭 / 轨道占用</span></div>
+              <div class="legend-item"><span class="line-swatch gray-line"></span><span>灰色 = 空闲</span></div>
+              <div class="legend-item"><span class="line-swatch blue-line"></span><span>蓝色 = 锁闭</span></div>
+              <div class="legend-item"><span class="line-swatch orange-line"></span><span>橙色 = 封锁</span></div>
+            </div>
+            <div class="legend-column signal-legend">
+              <div class="legend-item"><span class="dot green-dot"></span><span>信号开放</span></div>
+              <div class="legend-item"><span class="dot red-dot"></span><span>信号关闭</span></div>
+              <div class="legend-item"><span class="dot gray-dot"></span><span>信号空闲</span></div>
+              <div class="legend-item"><span class="ring red-ring"></span><span>信号熄灭</span></div>
+            </div>
+            <div class="legend-column device-legend">
+              <div class="legend-item switch-demo positioned">
+                <span class="mini-switch"></span>
+                <span>道岔定位</span>
+              </div>
+              <div class="legend-item switch-demo reverse">
+                <span class="mini-switch"></span>
+                <span>道岔反位</span>
+              </div>
+              <div class="legend-item"><span class="lock-symbol blue-lock"></span><span>设备锁闭</span></div>
+              <div class="legend-item"><span class="lock-symbol orange-lock"></span><span>设备封锁</span></div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="./interlocking-core.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
