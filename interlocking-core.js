@@ -253,11 +253,47 @@
       return () => listeners.delete(listener);
     }
 
+    function isRouteHolding(active) {
+      return [Enums.RouteStatus.ACTIVE, Enums.RouteStatus.CANCELING].includes(active?.status);
+    }
+
+    function routeLabel(route) {
+      return route?.name?.replace(/^办理/, "") || "进路";
+    }
+
+    function getFirstHoldingRoute(exceptRouteId) {
+      return Object.values(state.activeRoutes).find((active) => {
+        return active.routeId !== exceptRouteId && isRouteHolding(active);
+      });
+    }
+
+    function getRouteForActiveCommand(routeId, emptyMessage) {
+      const id = routeId ? normalizeRouteId(routeId) : Object.keys(state.activeRoutes).find((key) => {
+        return isRouteHolding(state.activeRoutes[key]);
+      });
+      const route = StationData.routes[id];
+      if (!route) {
+        return { error: makeResult(false, "ROUTE_NOT_FOUND", emptyMessage) };
+      }
+      if (!isRouteHolding(state.activeRoutes[id])) {
+        return { error: makeResult(false, "ROUTE_NOT_ACTIVE", `${route.name}当前未建立`) };
+      }
+      return { id, route };
+    }
+
     function validateRoute(routeId) {
       const id = normalizeRouteId(routeId);
       const route = StationData.routes[id];
       if (!route) {
         return makeResult(false, "ROUTE_NOT_FOUND", `进路不存在：${routeId}`);
+      }
+      if (isRouteHolding(state.activeRoutes[id])) {
+        return makeResult(false, "ROUTE_ALREADY_ACTIVE", `${route.name}已经建立，请先取消或解锁`);
+      }
+      const holdingRoute = getFirstHoldingRoute(id);
+      if (holdingRoute) {
+        const activeRoute = StationData.routes[holdingRoute.routeId];
+        return makeResult(false, "ROUTE_CONFLICT", `${routeLabel(activeRoute)}未解锁，不能办理${routeLabel(route)}`);
       }
 
       for (const trackId of route.requiredFreeTracks) {
@@ -271,6 +307,9 @@
         if (track.status === Enums.TrackStatus.BLOCKED) {
           return makeResult(false, "TRACK_BLOCKED", `${trackId}轨道区段封锁，不能建立进路`);
         }
+        if (track.status === Enums.TrackStatus.LOCKED) {
+          return makeResult(false, "TRACK_LOCKED", `${trackId}轨道区段锁闭，不能建立进路`);
+        }
       }
 
       for (const [switchId, requiredPosition] of Object.entries(route.requiredSwitches)) {
@@ -283,6 +322,16 @@
         }
         if ([Enums.SwitchLock.LOCKED, Enums.SwitchLock.SINGLE].includes(item.lock) && item.position !== requiredPosition) {
           return makeResult(false, "SWITCH_LOCKED_WRONG_POSITION", `${switchId}#道岔锁闭在非进路要求位置`);
+        }
+      }
+
+      for (const signalId of route.openSignals) {
+        const signal = state.signals[signalId];
+        if (!signal) {
+          return makeResult(false, "SIGNAL_NOT_FOUND", `${signalId}信号机不存在`);
+        }
+        if (signal.status === Enums.SignalStatus.FAULT) {
+          return makeResult(false, "SIGNAL_FAULT", `${signalId}信号机断丝熄灭，不能办理${routeLabel(route)}`);
         }
       }
 
@@ -368,18 +417,23 @@
       route.routeTracks.forEach((trackId) => {
         if (state.tracks[trackId].status !== Enums.TrackStatus.OCCUPIED) {
           state.tracks[trackId].status = Enums.TrackStatus.ROUTE;
+          state.tracks[trackId].description = `${route.name}锁闭`;
           changes.push({ kind: "track", id: trackId, field: "status", value: Enums.TrackStatus.ROUTE });
         }
       });
 
       route.openSignals.forEach((signalId) => {
         state.signals[signalId].status = Enums.SignalStatus.OPEN;
+        state.signals[signalId].description = `${signalId}信号机开放`;
         changes.push({ kind: "signal", id: signalId, field: "status", value: Enums.SignalStatus.OPEN });
       });
 
       route.closeSignals.forEach((signalId) => {
-        state.signals[signalId].status = Enums.SignalStatus.CLOSED;
-        changes.push({ kind: "signal", id: signalId, field: "status", value: Enums.SignalStatus.CLOSED });
+        if (state.signals[signalId].status !== Enums.SignalStatus.FAULT) {
+          state.signals[signalId].status = Enums.SignalStatus.CLOSED;
+          state.signals[signalId].description = `${signalId}信号机关闭`;
+          changes.push({ kind: "signal", id: signalId, field: "status", value: Enums.SignalStatus.CLOSED });
+        }
       });
 
       state.activeRoutes[id] = {
@@ -392,34 +446,39 @@
     }
 
     function cancelRoute(routeId) {
-      const id = routeId ? normalizeRouteId(routeId) : Object.keys(state.activeRoutes)[0];
-      const route = StationData.routes[id];
-      if (!route) return notifyResult(makeResult(false, "ROUTE_NOT_FOUND", "没有可取消的进路"));
-      releaseRoute(route);
-      return notifyResult(makeResult(true, "ROUTE_CANCELED", `${route.name}已取消`));
+      const target = getRouteForActiveCommand(routeId, "没有可取消的进路");
+      if (target.error) return notifyResult(target.error);
+      const changes = releaseRoute(target.route);
+      return notifyResult(makeResult(true, "ROUTE_CANCELED", `${target.route.name}已取消`, changes));
     }
 
     function unlockRoute(routeId) {
-      const id = routeId ? normalizeRouteId(routeId) : Object.keys(state.activeRoutes)[0];
-      const route = StationData.routes[id];
-      if (!route) return notifyResult(makeResult(false, "ROUTE_NOT_FOUND", "没有可解锁的进路"));
-      releaseRoute(route);
-      return notifyResult(makeResult(true, "ROUTE_UNLOCKED", `${route.name}已解锁`));
+      const target = getRouteForActiveCommand(routeId, "没有可解锁的进路");
+      if (target.error) return notifyResult(target.error);
+      const changes = releaseRoute(target.route);
+      return notifyResult(makeResult(true, "ROUTE_UNLOCKED", `${target.route.name}已解锁`, changes));
     }
 
     function manualUnlock(routeId, seconds = 30) {
+      const target = getRouteForActiveCommand(routeId, "没有可人工解锁的进路");
+      if (target.error) return notifyResult(target.error);
       state.countdown = seconds;
-      const id = routeId ? normalizeRouteId(routeId) : Object.keys(state.activeRoutes)[0];
-      const route = StationData.routes[id];
-      return notifyResult(makeResult(true, "MANUAL_UNLOCK_STARTED", `${route?.name || "进路"}人工解锁倒计时 ${seconds} 秒`, [
+      state.activeRoutes[target.id].status = Enums.RouteStatus.CANCELING;
+      state.activeRoutes[target.id].unlockSeconds = seconds;
+      state.activeRoutes[target.id].manualUnlockStartedAt = Date.now();
+      return notifyResult(makeResult(true, "MANUAL_UNLOCK_STARTED", `${target.route.name}人工解锁倒计时 ${seconds} 秒`, [
         { kind: "system", field: "countdown", value: seconds },
+        { kind: "route", id: target.id, field: "status", value: Enums.RouteStatus.CANCELING },
       ]));
     }
 
     function releaseRoute(route) {
+      const changes = [];
       route.routeTracks.forEach((trackId) => {
         if (state.tracks[trackId].status === Enums.TrackStatus.ROUTE) {
           state.tracks[trackId].status = Enums.TrackStatus.FREE;
+          state.tracks[trackId].description = `${trackId}轨道区段空闲`;
+          changes.push({ kind: "track", id: trackId, field: "status", value: Enums.TrackStatus.FREE });
         }
       });
       Object.keys(route.requiredSwitches).forEach((switchId) => {
@@ -427,12 +486,21 @@
           state.switches[switchId].lock = Enums.SwitchLock.FREE;
           state.switches[switchId].description =
             state.switches[switchId].position === Enums.SwitchPosition.POSITIONED ? "开通直向" : "开通侧向";
+          changes.push({ kind: "switch", id: switchId, field: "lock", value: Enums.SwitchLock.FREE });
         }
       });
       route.openSignals.forEach((signalId) => {
-        state.signals[signalId].status = Enums.SignalStatus.CLOSED;
+        if (state.signals[signalId]?.status !== Enums.SignalStatus.FAULT) {
+          state.signals[signalId].status = Enums.SignalStatus.CLOSED;
+          state.signals[signalId].description = `${signalId}信号机关闭`;
+          changes.push({ kind: "signal", id: signalId, field: "status", value: Enums.SignalStatus.CLOSED });
+        }
       });
+      state.countdown = 0;
+      changes.push({ kind: "system", field: "countdown", value: 0 });
       delete state.activeRoutes[route.id];
+      changes.push({ kind: "route", id: route.id, field: "status", value: Enums.RouteStatus.UNLOCKED });
+      return changes;
     }
 
     function reset() {

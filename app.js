@@ -345,6 +345,16 @@ function renderAll() {
   renderLogs();
 }
 
+function getActiveRouteId() {
+  return Object.entries(appState.activeRoutes || {}).find(([, route]) => {
+    return route.status === "active" || route.status === "canceling";
+  })?.[0];
+}
+
+function runCoreCommand(command) {
+  return dispatchCommand(command);
+}
+
 function resetRouteTracks() {
   Object.keys(appState.tracks).forEach((trackId) => {
     const nextStatus = ["3G", "6G"].includes(trackId) ? "occupied" : "free";
@@ -454,12 +464,12 @@ function resetDevices() {
 function autoDemo() {
   clearInterval(demoTimer);
   const steps = [
-    () => establishRoute("receive"),
-    () => enterSection(),
-    () => toggleOccupy(),
-    () => routeUnlock(),
-    () => shuntRoute(),
-    () => cancelRoute(),
+    () => runCoreCommand({ type: "RESET" }),
+    () => runCoreCommand({ type: "REQUEST_ROUTE", routeId: "receive" }),
+    () => runCoreCommand({ type: "SET_TRACK_OCCUPANCY", trackId: "1G", occupied: true }),
+    () => runCoreCommand({ type: "UNLOCK_ROUTE", routeId: "receive" }),
+    () => runCoreCommand({ type: "REQUEST_ROUTE", routeId: "shunt" }),
+    () => runCoreCommand({ type: "CANCEL_ROUTE", routeId: "shunt" }),
   ];
   let index = 0;
   addLog("info", "自动演示启动");
@@ -472,23 +482,34 @@ function autoDemo() {
 }
 
 const actions = {
-  receiveRoute: () => establishRoute("receive"),
-  departRoute: () => establishRoute("depart"),
-  throughRoute: () => establishRoute("through"),
-  cancelRoute,
-  manualUnlock: startManualUnlock,
-  routeUnlock,
-  shuntRoute,
-  shuntCancel: cancelRoute,
+  receiveRoute: () => runCoreCommand({ type: "REQUEST_ROUTE", routeId: "receive" }),
+  departRoute: () => runCoreCommand({ type: "REQUEST_ROUTE", routeId: "depart" }),
+  throughRoute: () => runCoreCommand({ type: "REQUEST_ROUTE", routeId: "through" }),
+  cancelRoute: () => runCoreCommand({ type: "CANCEL_ROUTE", routeId: getActiveRouteId() }),
+  manualUnlock: () => runCoreCommand({ type: "MANUAL_UNLOCK", routeId: getActiveRouteId(), seconds: 30 }),
+  routeUnlock: () => runCoreCommand({ type: "UNLOCK_ROUTE", routeId: getActiveRouteId() }),
+  shuntRoute: () => runCoreCommand({ type: "REQUEST_ROUTE", routeId: "shunt" }),
+  shuntCancel: () => runCoreCommand({ type: "CANCEL_ROUTE", routeId: "shunt" }),
   openShuntSignal: () => {
-    setSignalState("D1", "open");
-    addLog("success", "D1调车信号开放");
-    renderDeviceStatus();
+    runCoreCommand({ type: "SET_SIGNAL_STATUS", signalId: "D1", status: "open" });
   },
-  enterSection,
-  toggleOccupy,
-  signalFault,
-  resetDevices,
+  enterSection: () => runCoreCommand({ type: "SET_TRACK_OCCUPANCY", trackId: "1G", occupied: true }),
+  toggleOccupy: () => {
+    const track = appState.tracks[appState.selectedSection];
+    runCoreCommand({ type: "SET_TRACK_OCCUPANCY", trackId: track.id, occupied: track.status !== "occupied" });
+    appState.selectedSection = appState.selectedSection === "3G" ? "6G" : "3G";
+  },
+  signalFault: () => {
+    const current = appState.signals.X1.status;
+    runCoreCommand({ type: "SET_SIGNAL_STATUS", signalId: "X1", status: current === "fault" ? "closed" : "fault" });
+  },
+  resetDevices: () => {
+    clearInterval(countdownTimer);
+    clearInterval(demoTimer);
+    runCoreCommand({ type: "RESET" });
+    simulationClock = new Date(INITIAL_CLOCK);
+    elements.clock.innerHTML = formatDateTime(simulationClock);
+  },
   autoDemo,
 };
 
@@ -503,13 +524,21 @@ function bindEvents() {
 
   document.querySelectorAll("[data-switch]").forEach((button) => {
     button.addEventListener("click", () => {
-      setSwitchPosition(button.dataset.switch, button.dataset.position);
+      runCoreCommand({
+        type: "SET_SWITCH_POSITION",
+        switchId: button.dataset.switch,
+        position: button.dataset.position,
+      });
     });
   });
 
   document.querySelectorAll("[data-switch-lock]").forEach((button) => {
     button.addEventListener("click", () => {
-      setSwitchLock(button.dataset.switchLock, button.dataset.lock);
+      runCoreCommand({
+        type: "SET_SWITCH_LOCK",
+        switchId: button.dataset.switchLock,
+        lock: button.dataset.lock,
+      });
     });
   });
 }
@@ -530,8 +559,9 @@ function dispatchCommand(command) {
   if (result.message) {
     addLog(result.ok ? "success" : "danger", result.message);
   }
+  appState = coreSystem.getState();
   if (window.InterlockingAPI) {
-    window.InterlockingAPI.state = coreSystem.getState();
+    window.InterlockingAPI.state = appState;
   }
   renderAll();
   return result;
