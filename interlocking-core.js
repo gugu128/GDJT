@@ -338,6 +338,25 @@
       return makeResult(true, "ROUTE_VALID", `${route.name}条件检查通过`);
     }
 
+    function switchPositionLabel(switchId, position) {
+      const meta = StationData.switches[switchId];
+      if (position === Enums.SwitchPosition.POSITIONED) {
+        return meta?.normal?.label || "定位";
+      }
+      return meta?.reverse?.label || "反位";
+    }
+
+    function switchDescriptionByPosition(position) {
+      return position === Enums.SwitchPosition.POSITIONED ? "开通直向" : "开通侧向";
+    }
+
+    function switchDescriptionByLock(item) {
+      if (item.lock === Enums.SwitchLock.BLOCKED) return "设备封锁";
+      if (item.lock === Enums.SwitchLock.SINGLE) return "单独锁闭";
+      if (item.lock === Enums.SwitchLock.LOCKED) return "进路锁闭";
+      return switchDescriptionByPosition(item.position);
+    }
+
     function setSwitchPosition(switchId, position) {
       const item = state.switches[switchId];
       if (!item) return notifyResult(makeResult(false, "SWITCH_NOT_FOUND", `${switchId}#道岔不存在`));
@@ -350,9 +369,17 @@
       if ([Enums.SwitchLock.LOCKED, Enums.SwitchLock.SINGLE].includes(item.lock) && item.position !== position) {
         return notifyResult(makeResult(false, "SWITCH_LOCKED", `${switchId}#道岔锁闭，禁止转换`));
       }
+      const label = switchPositionLabel(switchId, position);
+      if (item.position === position) {
+        return notifyResult(makeResult(true, "SWITCH_POSITION_UNCHANGED", `${switchId}#道岔已在${label}`, [
+          { kind: "switch", id: switchId, field: "position", value: position },
+        ]));
+      }
       item.position = position;
-      item.description = position === Enums.SwitchPosition.POSITIONED ? "开通直向" : "开通侧向";
-      return notifyResult(makeResult(true, "SWITCH_POSITION_SET", `${switchId}#道岔转换至${position}`, [
+      if (item.lock === Enums.SwitchLock.FREE) {
+        item.description = switchDescriptionByPosition(position);
+      }
+      return notifyResult(makeResult(true, "SWITCH_POSITION_SET", `${switchId}#道岔转换至${label}`, [
         { kind: "switch", id: switchId, field: "position", value: position },
       ]));
     }
@@ -363,11 +390,53 @@
       if (!isEnumValue(Enums.SwitchLock, lock)) {
         return notifyResult(makeResult(false, "INVALID_SWITCH_LOCK", `无效道岔锁闭状态：${lock}`));
       }
+      const lockMessage = {
+        [Enums.SwitchLock.FREE]: "已解锁",
+        [Enums.SwitchLock.SINGLE]: "已单独锁闭",
+        [Enums.SwitchLock.BLOCKED]: "已设备封锁",
+        [Enums.SwitchLock.LOCKED]: "已进路锁闭",
+      }[lock];
+      const lockStatusLabel = {
+        [Enums.SwitchLock.FREE]: "解锁",
+        [Enums.SwitchLock.SINGLE]: "单独锁闭",
+        [Enums.SwitchLock.BLOCKED]: "设备封锁",
+        [Enums.SwitchLock.LOCKED]: "进路锁闭",
+      }[lock];
+      if (item.lock === lock) {
+        return notifyResult(makeResult(true, "SWITCH_LOCK_UNCHANGED", `${switchId}#道岔已处于${lockStatusLabel}状态`, [
+          { kind: "switch", id: switchId, field: "lock", value: lock },
+        ]));
+      }
+      if (item.lock === Enums.SwitchLock.BLOCKED && lock !== Enums.SwitchLock.FREE) {
+        return notifyResult(makeResult(false, "SWITCH_BLOCKED", `${switchId}#道岔处于封锁状态，只能执行解锁操作`));
+      }
+      if (item.lock === Enums.SwitchLock.LOCKED && lock !== Enums.SwitchLock.LOCKED) {
+        return notifyResult(makeResult(false, "SWITCH_ROUTE_LOCKED", `${switchId}#道岔进路锁闭，请通过取消进路或进路解锁释放`));
+      }
+      if (lock === Enums.SwitchLock.BLOCKED && item.lock !== Enums.SwitchLock.FREE) {
+        return notifyResult(makeResult(false, "SWITCH_NOT_FREE", `${switchId}#道岔未解锁，不能施加设备封锁`));
+      }
       item.lock = lock;
-      item.description = lock === "free" ? (item.position === "positioned" ? "开通直向" : "开通侧向") : lock === "blocked" ? "设备封锁" : lock === "single" ? "单独锁闭" : "进路锁闭";
-      return notifyResult(makeResult(true, "SWITCH_LOCK_SET", `${switchId}#道岔锁闭状态已更新`, [
+      item.description = switchDescriptionByLock(item);
+      return notifyResult(makeResult(true, "SWITCH_LOCK_SET", `${switchId}#道岔${lockMessage}`, [
         { kind: "switch", id: switchId, field: "lock", value: lock },
       ]));
+    }
+
+    function signalDescription(signalId, status) {
+      const meta = StationData.signals[signalId];
+      const name = meta?.name || `${signalId}信号机`;
+      if (status === Enums.SignalStatus.OPEN) return `${name}开放`;
+      if (status === Enums.SignalStatus.CLOSED) return `${name}关闭`;
+      return `${name}断丝熄灭`;
+    }
+
+    function signalStatusMessage(signalId, status) {
+      const meta = StationData.signals[signalId];
+      const name = meta?.name || `${signalId}信号机`;
+      if (status === Enums.SignalStatus.OPEN) return `${name}已开放`;
+      if (status === Enums.SignalStatus.CLOSED) return `${name}已关闭`;
+      return `${name}断丝熄灭`;
     }
 
     function setSignalStatus(signalId, status) {
@@ -376,17 +445,37 @@
       if (!isEnumValue(Enums.SignalStatus, status)) {
         return notifyResult(makeResult(false, "INVALID_SIGNAL_STATUS", `无效信号机状态：${status}`));
       }
+      if (status === Enums.SignalStatus.OPEN && item.status === Enums.SignalStatus.FAULT) {
+        return notifyResult(makeResult(false, "SIGNAL_FAULT", `${signalId}信号机断丝熄灭，禁止开放`));
+      }
       item.status = status;
-      return notifyResult(makeResult(true, "SIGNAL_STATUS_SET", `${signalId}信号机状态已更新`, [
+      item.description = signalDescription(signalId, status);
+      return notifyResult(makeResult(true, "SIGNAL_STATUS_SET", signalStatusMessage(signalId, status), [
         { kind: "signal", id: signalId, field: "status", value: status },
       ]));
+    }
+
+    function trackDescriptionByStatus(trackId, status) {
+      const meta = StationData.tracks[trackId];
+      if (status === Enums.TrackStatus.OCCUPIED) return `${trackId}轨道区段占用`;
+      if (status === Enums.TrackStatus.ROUTE) return `${trackId}进路锁闭`;
+      return meta?.line ? `${meta.line}空闲` : `${trackId}轨道区段空闲`;
     }
 
     function setTrackOccupancy(trackId, occupied) {
       const item = state.tracks[trackId];
       if (!item) return notifyResult(makeResult(false, "TRACK_NOT_FOUND", `${trackId}轨道区段不存在`));
-      item.status = occupied ? Enums.TrackStatus.OCCUPIED : findTrackInActiveRoute(trackId) ? Enums.TrackStatus.ROUTE : Enums.TrackStatus.FREE;
-      return notifyResult(makeResult(true, "TRACK_OCCUPANCY_SET", `${trackId}轨道区段${occupied ? "占用" : "出清"}`, [
+      if (occupied) {
+        item.status = Enums.TrackStatus.OCCUPIED;
+        item.description = trackDescriptionByStatus(trackId, Enums.TrackStatus.OCCUPIED);
+        return notifyResult(makeResult(true, "TRACK_OCCUPIED", `${trackId}轨道区段占用`, [
+          { kind: "track", id: trackId, field: "status", value: item.status },
+        ]));
+      }
+      const nextStatus = findTrackInActiveRoute(trackId) ? Enums.TrackStatus.ROUTE : Enums.TrackStatus.FREE;
+      item.status = nextStatus;
+      item.description = trackDescriptionByStatus(trackId, nextStatus);
+      return notifyResult(makeResult(true, "TRACK_CLEARED", `${trackId}轨道区段出清`, [
         { kind: "track", id: trackId, field: "status", value: item.status },
       ]));
     }
